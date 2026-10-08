@@ -1,0 +1,106 @@
+name: Modern Facts Shorts
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Video topic (leave empty to generate one with Gemini)"
+        required: false
+        default: ""
+        type: string
+      voice_name:
+        description: "Edge TTS voice name"
+        required: false
+        default: "en-US-AndrewMultilingualNeural-Male"
+        type: string
+      youtube_privacy:
+        description: "YouTube visibility (private recommended while testing)"
+        required: false
+        default: private
+        type: choice
+        options:
+          - private
+          - unlisted
+          - public
+
+permissions:
+  contents: read
+
+concurrency:
+  group: modern-facts-shorts
+  cancel-in-progress: false
+
+jobs:
+  shorts:
+    name: Generate one Short
+    # Generation takes a few minutes; a configured YouTube publish can wait
+    # up to one hour for Upload-Post to finish before reporting.
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      UPLOAD_POST_API_KEY: ${{ secrets.UPLOAD_POST_API_KEY }}
+      UPLOAD_POST_USERNAME: ${{ secrets.UPLOAD_POST_USERNAME }}
+      SHORTS_TOPIC: ${{ inputs.topic }}
+      SHORTS_VOICE_NAME: ${{ inputs.voice_name }}
+      SHORTS_YOUTUBE_PRIVACY: ${{ inputs.youtube_privacy }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Verify required secrets are configured
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "::error::The GEMINI_API_KEY repository secret is not set. Add it under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          if [ -z "$UPLOAD_POST_API_KEY" ] || [ -z "$UPLOAD_POST_USERNAME" ]; then
+            echo "::error::The UPLOAD_POST_API_KEY and/or UPLOAD_POST_USERNAME repository secrets are not set. This workflow only succeeds when the YouTube upload succeeds, so add both secrets before running it."
+            exit 1
+          fi
+          echo "Secrets are configured. YouTube upload privacy level: $SHORTS_YOUTUBE_PRIVACY"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen --python 3.11
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      # Generation only: --no-upload guarantees the pipeline never publishes
+      # by itself, so exactly one upload happens in the dedicated step below.
+      - name: Run Shorts generator
+        run: >-
+          uv run --no-sync python -X utf8 scripts/run_modern_facts_shorts.py
+          --no-upload
+
+      - name: Upload the Short artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: modern-facts-short-${{ github.run_number }}
+          path: storage/modern_facts/
+          if-no-files-found: error
+          retention-days: 14
+
+      # Runs only after generation and the artifact succeeded. Publishes the
+      # newest generated MP4 through the existing app/services/upload_post.py
+      # integration (POST https://api.upload-post.com/api/upload) to the
+      # already-authorized YouTube account, with the visibility selected by
+      # the youtube_privacy input (default: private). The step - and therefore
+      # the whole run - fails if the Upload-Post API reports any error.
+      - name: Upload video to YouTube via Upload-Post
+        run: >-
+          uv run --no-sync python -X utf8 scripts/upload_short_youtube.py
+          --video-dir storage/modern_facts
+          --privacy ${{ inputs.youtube_privacy }}
