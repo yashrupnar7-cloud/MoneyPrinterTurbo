@@ -20,7 +20,27 @@ jobs:
         run: |
           pip install -r requirements.txt
 
+      - name: Configure Gemini
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path("config.example.toml").read_text()
+          source = source.replace(
+              'llm_provider = "moonshot"',
+              'llm_provider = "gemini"'
+          )
+          source = source.replace(
+              'gemini_api_key = ""',
+              'gemini_api_key = "${GEMINI_API_KEY}"'
+          )
+
+          Path("config.toml").write_text(source)
+          PY
+
       - name: Run Shorts generator
         run: |
-          echo "Shorts automation setup"
-          echo "Video generation will be connected here next."
+          echo "Gemini configured."
+          echo "Next we will connect actual video generation."
