@@ -22,11 +22,14 @@ services end to end:
    the `youtube_privacy` input and defaults to **private**; the run only
    succeeds when the upload API confirms success.
 
-## GitHub Actions (manual)
+## GitHub Actions
 
-Workflow: `.github/workflows/shorts.yml`. It runs only on
-**workflow_dispatch** (no schedule), and uploads the finished files as the
-artifact `modern-facts-short-<run number>`.
+Workflow: `.github/workflows/shorts.yml`. It runs on a **schedule** (twice a
+day, `0 9,21 * * *` UTC) and on **workflow_dispatch** (manual), and uploads
+the finished files as the artifact `modern-facts-short-<run number>`.
+
+Scheduled runs use the defaults: a Gemini-chosen topic, the default voice,
+and `private` visibility. Manual runs can override these per run.
 
 Steps:
 
@@ -41,6 +44,10 @@ Steps:
    - `voice_name` — any Edge TTS voice, default
      `en-US-AndrewMultilingualNeural-Male`.
    - `youtube_privacy` — `private` (default), `unlisted`, or `public`.
+
+Scheduled runs cannot supply these inputs, so they use the defaults above.
+To change the cadence, edit the `cron` entry under `on.schedule` in
+`.github/workflows/shorts.yml`.
 
 Job order and failure semantics:
 

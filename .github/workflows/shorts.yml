@@ -1,6 +1,11 @@
 name: Modern Facts Shorts
 
 on:
+  # Scheduled runs use the defaults below: a Gemini-chosen topic, the default
+  # voice, and private visibility. Manual runs (workflow_dispatch) can override
+  # the topic, voice and visibility per run.
+  schedule:
+    - cron: "0 9,21 * * *"
   workflow_dispatch:
     inputs:
       topic:
@@ -43,8 +48,8 @@ jobs:
       UPLOAD_POST_API_KEY: ${{ secrets.UPLOAD_POST_API_KEY }}
       UPLOAD_POST_USERNAME: ${{ secrets.UPLOAD_POST_USERNAME }}
       SHORTS_TOPIC: ${{ inputs.topic }}
-      SHORTS_VOICE_NAME: ${{ inputs.voice_name }}
-      SHORTS_YOUTUBE_PRIVACY: ${{ inputs.youtube_privacy }}
+      SHORTS_VOICE_NAME: ${{ inputs.voice_name || 'en-US-AndrewMultilingualNeural-Male' }}
+      SHORTS_YOUTUBE_PRIVACY: ${{ inputs.youtube_privacy || 'private' }}
 
     steps:
       - name: Check out repository
@@ -103,4 +108,4 @@ jobs:
         run: >-
           uv run --no-sync python -X utf8 scripts/upload_short_youtube.py
           --video-dir storage/modern_facts
-          --privacy ${{ inputs.youtube_privacy }}
+          --privacy ${{ inputs.youtube_privacy || 'private' }}
